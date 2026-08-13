@@ -7,7 +7,7 @@ import {
   isInsidePiWork,
   normalizeToolPath,
   stateQueueTarget,
-} from "../extensions/runtime-v200.js";
+} from "../extensions/runtime.js";
 
 test("pi-work path guard handles exact and nested paths", () => {
   const root = resolve("/tmp/project");

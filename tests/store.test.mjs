@@ -14,7 +14,7 @@ import {
   saveArtifact,
   setTasks,
   updateTask,
-} from "../extensions/store-v200.js";
+} from "../extensions/store.js";
 
 test("small work persists and gates review/verify", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-orch-"));
@@ -89,7 +89,7 @@ test("project memory can be updated before first work item", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-orch-"));
   try {
     await ensureWorkspace(root);
-    const { updateProjectMemory } = await import("../extensions/store-v200.js");
+    const { updateProjectMemory } = await import("../extensions/store.js");
     const target = await updateProjectMemory(
       root,
       "architecture",

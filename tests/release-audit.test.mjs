@@ -6,12 +6,12 @@ import { join } from "node:path";
 const root = new URL("../", import.meta.url);
 const extensionDir = new URL("../extensions/", import.meta.url);
 
-test("index only imports versioned v200 local helper modules", async () => {
+test("index only imports local helper modules", async () => {
   const index = await readFile(new URL("../extensions/index.ts", import.meta.url), "utf8");
   const localImports = [...index.matchAll(/from\s+"(\.\/[^"]+)"/g)].map((m) => m[1]);
   assert.ok(localImports.length >= 5);
   for (const specifier of localImports) {
-    assert.match(specifier, /-v200\.js$/);
+    assert.match(specifier, /\.js$/);
   }
 });
 
@@ -36,13 +36,13 @@ test("release guards direct agent mutation of .pi-work", async () => {
 
 test("all runtime helper modules declare matching release version", async () => {
   const files = (await readdir(extensionDir, { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && entry.name.endsWith("-v200.js"))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".js") && entry.name !== "index.js")
     .map((entry) => entry.name);
 
   assert.ok(files.length >= 6);
 
   for (const file of files) {
     const text = await readFile(new URL(`../extensions/${file}`, import.meta.url), "utf8");
-    assert.match(text, /MODULE_VERSION = "2\.0\.0"/);
+    assert.match(text, /MODULE_VERSION = "2\.0\.1"/);
   }
 });

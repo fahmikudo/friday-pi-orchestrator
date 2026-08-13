@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.0";
+export const MODULE_VERSION = "2.0.1";
 import {
   access,
   appendFile,
@@ -10,8 +10,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, parse, resolve } from "node:path";
-import { DEFAULT_MODEL_PROFILES, DEFAULT_WORKFLOW_POLICY, slugify, triage } from "./core-v200.js";
-import { ensureBacklogStore, syncBacklogWorkCancellation, syncBacklogWorkCompletion, syncBacklogWorkCompletionByWorkId } from "./backlog-v200.js";
+import { DEFAULT_MODEL_PROFILES, DEFAULT_WORKFLOW_POLICY, slugify, triage } from "./core.js";
+import { ensureBacklogStore, syncBacklogWorkCancellation, syncBacklogWorkCompletion, syncBacklogWorkCompletionByWorkId } from "./backlog.js";
 
 const WORKSPACE = ".pi-work";
 const SCHEMA_VERSION = 1;

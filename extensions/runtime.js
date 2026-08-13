@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.0";
+export const MODULE_VERSION = "2.0.1";
 
 import { isAbsolute, relative, resolve } from "node:path";
 

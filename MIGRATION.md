@@ -1,4 +1,4 @@
-# Migration — Pi Engineering Orchestrator v1.0.8 to Friday Pi Orchestrator v2.0.0
+# Migration — Pi Engineering Orchestrator v1.0.8 to Friday Pi Orchestrator v2.0.1
 
 Friday v2.0.0 is a major product/runtime release, but it intentionally preserves the existing `.pi-work` state format.
 
@@ -17,7 +17,7 @@ Repository/package name:
 friday-pi-orchestrator
 ```
 
-Runtime helper modules move from `-v108.js` to unique `-v200.js` paths.
+Runtime helper modules move from `-v108.js` to clean paths (version suffix removed).
 
 ## What does NOT change
 

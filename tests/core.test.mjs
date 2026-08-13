@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectDomains, inferDomainFromPath, triage } from "../extensions/core-v200.js";
+import { detectDomains, inferDomainFromPath, triage } from "../extensions/core.js";
 
 test("bugfix uses short route", () => {
   const result = triage("fix login endpoint returning 500 when email is empty");

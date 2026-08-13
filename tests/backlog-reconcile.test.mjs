@@ -9,14 +9,14 @@ import {
   loadBacklog,
   reconcileBacklogWorkStates,
   saveBacklog,
-} from "../extensions/backlog-v200.js";
+} from "../extensions/backlog.js";
 
 import {
   completeStage,
   createWork,
   ensureWorkspace,
   saveArtifact,
-} from "../extensions/store-v200.js";
+} from "../extensions/store.js";
 
 const sample = {
   id: "sprint-2",

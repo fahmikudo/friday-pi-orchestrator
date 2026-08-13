@@ -275,7 +275,7 @@ If code must change:
 
 ### New package installed but old behavior still appears
 
-Fully quit every Pi process and restart. Friday uses unique `-v200.js` helper paths, but a fresh process remains the safest major-upgrade procedure.
+Fully quit every Pi process and restart. Friday uses unique `.js` helper paths, but a fresh process remains the safest major-upgrade procedure.
 
 ### Skill conflict warning
 

@@ -1,12 +1,12 @@
-# Friday Pi Orchestrator v2.0.0 — Release Audit
+# Friday Pi Orchestrator v2.0.1 — Release Audit
 
-Release target: **2.0.0**  
+Release target: **2.0.1**  
 Behavioral ancestor: **Pi Engineering Orchestrator v1.0.8**  
 Durable workspace: **`.pi-work` preserved**
 
 ## Release scope
 
-v2.0.0 was audited as a major workflow/runtime release, not a branding-only change.
+v2.0.1 was audited as a patch release on top of the v2.0.0 workflow/runtime baseline, focused on deterministic skill-conflict installation.
 
 Validated areas:
 
@@ -41,8 +41,8 @@ node --test tests/*.test.mjs
 Result:
 
 ```text
-62 tests
-62 passed
+64 tests
+64 passed
 0 failed
 ```
 
@@ -75,12 +75,12 @@ Coverage includes legacy regression tests plus v2 workflows:
 Validated:
 
 ```text
-extensions/core-v200.js
-extensions/store-v200.js
-extensions/backlog-v200.js
-extensions/format-v200.js
-extensions/backlog-format-v200.js
-extensions/runtime-v200.js
+extensions/core.js
+extensions/store.js
+extensions/backlog.js
+extensions/format.js
+extensions/backlog-format.js
+extensions/runtime.js
 ```
 
 Result: PASS.
@@ -168,8 +168,8 @@ Result: PASS.
 
 Verified:
 
-- runtime imports use only `-v200.js` local helper paths;
-- all helper modules declare `MODULE_VERSION = "2.0.0"`;
+- runtime imports use only `.js` local helper paths;
+- all helper modules declare `MODULE_VERSION = "2.0.1"`;
 - Friday does not register Pi's built-in `/resume`;
 - runtime/package files contain no stale v1 helper imports;
 - old local package target is referenced only for migration/archive behavior;
@@ -197,4 +197,8 @@ Friday does not configure, inspect, or modify provider authentication. Provider 
 PASS
 ```
 
-Friday Pi Orchestrator v2.0.0 is ready as the major baseline for the renamed GitHub project, with backward-compatible `.pi-work` execution state and the new v2 workflow controls documented above.
+Friday Pi Orchestrator v2.0.1 is ready as the installer-stabilization patch for the v2 workflow baseline, with backward-compatible `.pi-work` execution state.
+
+## v2.0.1 installer regression
+
+The installed package manifest is pruned before `pi install` when same-name global skills already exist. This prevents Pi from discovering duplicate package copies while preserving all global skills untouched.

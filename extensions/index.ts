@@ -17,7 +17,7 @@ import {
   resolveSkills,
   shouldAutoContinue,
   stageInstruction,
-} from "./core-v200.js";
+} from "./core.js";
 
 import {
   MODULE_VERSION as STORE_MODULE_VERSION,
@@ -49,20 +49,20 @@ import {
   updateRepositoryProfile,
   updateTask,
   updateWorkflowPolicy,
-} from "./store-v200.js";
+} from "./store.js";
 
 import {
   MODULE_VERSION as FORMAT_MODULE_VERSION,
   formatStatus,
   formatTasks,
   formatWorkList,
-} from "./format-v200.js";
+} from "./format.js";
 
 import {
   MODULE_VERSION as BACKLOG_FORMAT_MODULE_VERSION,
   formatBacklog,
   formatBacklogList,
-} from "./backlog-format-v200.js";
+} from "./backlog-format.js";
 
 import {
   MODULE_VERSION as BACKLOG_MODULE_VERSION,
@@ -78,7 +78,7 @@ import {
   saveBacklogClosure,
   setActiveBacklog,
   updateBacklogItem,
-} from "./backlog-v200.js";
+} from "./backlog.js";
 
 import {
   MODULE_VERSION as RUNTIME_MODULE_VERSION,
@@ -86,7 +86,7 @@ import {
   isInsidePiWork,
   normalizeToolPath,
   stateQueueTarget,
-} from "./runtime-v200.js";
+} from "./runtime.js";
 
 type UiContext = {
   cwd: string;
@@ -199,7 +199,7 @@ function continuationKickoff(workId: string) {
 }
 
 
-const RELEASE_VERSION = "2.0.0";
+const RELEASE_VERSION = "2.0.1";
 
 const ORCHESTRATOR_ACTIONS = [
   "init",

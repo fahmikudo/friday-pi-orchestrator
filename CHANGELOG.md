@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.1 — Skill conflict installer fix
+
+- Fix duplicate skill warnings when the standalone global advanced-skill pack is already installed.
+- Installer now rewrites the installed Friday package manifest **before `pi install`** so package skill discovery exposes only skills not already available globally.
+- Existing global skills are never deleted or moved.
+- Package-bundled skill files remain on disk for distribution, but duplicate copies are not registered with Pi.
+- Added regression coverage for full and partial global-skill overlap.
+
 ## 2.0.0 — Friday
 
 Major release and product rename from Pi Engineering Orchestrator v1.0.8.

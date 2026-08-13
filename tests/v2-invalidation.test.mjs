@@ -11,7 +11,7 @@ import {
   ensureWorkspace,
   markDirty,
   saveArtifact,
-} from "../extensions/store-v200.js";
+} from "../extensions/store.js";
 
 async function tempRoot() {
   const root = await mkdtemp(join(tmpdir(), "friday-v2-invalidate-"));

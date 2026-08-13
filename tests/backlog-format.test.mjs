@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   formatBacklog,
   formatBacklogList,
-} from "../extensions/backlog-format-v200.js";
+} from "../extensions/backlog-format.js";
 
 const backlog = {
   id: "sprint-2",

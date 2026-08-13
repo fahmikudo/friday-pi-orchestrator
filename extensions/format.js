@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.0";
+export const MODULE_VERSION = "2.0.1";
 
 export function formatStatus(manifest, tasks = [], agents = [], routing = undefined) {
   const done = Object.entries(manifest.stages ?? {}).filter(([, value]) => value.status === "DONE").length;

@@ -21,19 +21,19 @@ for cmd in pi node; do
   fi
 done
 
-echo "Friday Pi Orchestrator v2.0.0"
+echo "Friday Pi Orchestrator v2.0.1"
 echo "Build with structure. Finish with confidence. Feel like Friday."
 echo
 echo "Pre-install validation..."
 (
   cd "${SOURCE_DIR}"
   node --test tests/*.test.mjs
-  node --check extensions/core-v200.js
-  node --check extensions/store-v200.js
-  node --check extensions/backlog-v200.js
-  node --check extensions/format-v200.js
-  node --check extensions/backlog-format-v200.js
-  node --check extensions/runtime-v200.js
+  node --check extensions/core.js
+  node --check extensions/store.js
+  node --check extensions/backlog.js
+  node --check extensions/format.js
+  node --check extensions/backlog-format.js
+  node --check extensions/runtime.js
   if command -v python3 >/dev/null 2>&1 && python3 -c 'import yaml' >/dev/null 2>&1; then
     python3 scripts/validate_skills.py
   else
@@ -66,12 +66,12 @@ find "${TARGET_DIR}" -name '*.bak' -type f -delete 2>/dev/null || true
 required=(
   "package.json"
   "extensions/index.ts"
-  "extensions/core-v200.js"
-  "extensions/store-v200.js"
-  "extensions/backlog-v200.js"
-  "extensions/format-v200.js"
-  "extensions/backlog-format-v200.js"
-  "extensions/runtime-v200.js"
+  "extensions/core.js"
+  "extensions/store.js"
+  "extensions/backlog.js"
+  "extensions/format.js"
+  "extensions/backlog-format.js"
+  "extensions/runtime.js"
   "README.md"
 )
 for file in "${required[@]}"; do
@@ -81,8 +81,9 @@ for file in "${required[@]}"; do
   fi
 done
 
+echo "Configuring packaged skill exposure..."
+node "${TARGET_DIR}/scripts/configure-packaged-skills.mjs" "${TARGET_DIR}"
 pi install "${TARGET_DIR}"
-node "${TARGET_DIR}/scripts/configure-skill-conflicts.mjs" "${TARGET_DIR}" || true
 
 echo
 echo "Installed Friday at: ${TARGET_DIR}"

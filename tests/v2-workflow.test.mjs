@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { resolveModelProfile, resolveSkills, shouldAutoContinue, triage } from "../extensions/core-v200.js";
+import { resolveModelProfile, resolveSkills, shouldAutoContinue, triage } from "../extensions/core.js";
 import {
   approve,
   cancelWork,
@@ -23,8 +23,8 @@ import {
   setTasks,
   updateRepositoryProfile,
   updateTask,
-} from "../extensions/store-v200.js";
-import { linkBacklogWork, loadBacklog, saveBacklog } from "../extensions/backlog-v200.js";
+} from "../extensions/store.js";
+import { linkBacklogWork, loadBacklog, saveBacklog } from "../extensions/backlog.js";
 
 async function tempRoot() {
   const root = await mkdtemp(join(tmpdir(), "friday-v2-"));

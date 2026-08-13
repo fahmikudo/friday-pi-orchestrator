@@ -12,14 +12,14 @@ import {
   resolveStartableItem,
   saveBacklog,
   saveBacklogClosure,
-} from "../extensions/backlog-v200.js";
+} from "../extensions/backlog.js";
 
 import {
   completeStage,
   createWork,
   ensureWorkspace,
   saveArtifact,
-} from "../extensions/store-v200.js";
+} from "../extensions/store.js";
 
 async function withProject(fn) {
   const root = await mkdtemp(join(tmpdir(), "pi-orch-backlog-"));
@@ -206,7 +206,7 @@ test("old workspace upgrades by adding optional backlog store without changing o
 });
 
 test("manual block persists until explicitly released", async () => {
-  const { updateBacklogItem } = await import("../extensions/backlog-v200.js");
+  const { updateBacklogItem } = await import("../extensions/backlog.js");
   await withProject(async (root) => {
     await saveBacklog(root, sample);
     let backlog = await updateBacklogItem(root, "S2-01", "BLOCKED", "waiting for decision");

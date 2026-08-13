@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.0";
+export const MODULE_VERSION = "2.0.1";
 import {
   access,
   appendFile,
@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { slugify } from "./core-v200.js";
+import { slugify } from "./core.js";
 
 const WORKSPACE = ".pi-work";
 const BACKLOG_SCHEMA_VERSION = 1;

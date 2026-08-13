@@ -1,4 +1,4 @@
-# Friday Pi Orchestrator v2.0.0
+# Friday Pi Orchestrator v2.0.1
 
 > **Build with structure. Finish with confidence. Feel like Friday.**
 
@@ -32,6 +32,12 @@ Skill        != state machine
 This lets you restart Pi, switch models, reject a design, recover from failed verification, or resume days later without reconstructing the project from chat history.
 
 ---
+
+## v2.0.1 patch
+
+- Fixes duplicate skill warnings when the same advanced engineering skills already exist under `~/.pi/agent/skills`.
+- The installer now prunes only the **installed Friday manifest** before `pi install`, so global skills stay authoritative and untouched.
+- No `.pi-work` migration is required.
 
 ## Highlights in v2.0.0
 
@@ -76,8 +82,8 @@ Friday does **not** manage provider credentials. OpenAI, Google, Anthropic, loca
 ## Install from a release archive
 
 ```bash
-unzip friday-pi-orchestrator-v2.0.0.zip
-cd friday-pi-orchestrator-v2.0.0
+unzip friday-pi-orchestrator-v2.0.1.zip
+cd friday-pi-orchestrator-v2.0.1
 ./install.sh
 ```
 
@@ -109,9 +115,9 @@ Once the repository is published, Pi can install a package directly from a Git U
 
 Friday bundles its own 62 engineering skills.
 
-If you previously installed the standalone `pi-advanced-engineering-skills` pack globally under `~/.pi/agent/skills`, the installer detects duplicate skill names and configures the Friday package to exclude only those duplicate packaged copies. Your existing global skills are not deleted or moved.
+If you previously installed the standalone `pi-advanced-engineering-skills` pack globally under `~/.pi/agent/skills`, the installer detects duplicate skill names **before registering the Friday package**. It rewrites only the installed Friday package manifest so Pi sees the existing global copy as authoritative and registers only Friday skills that are missing globally. Your existing global skills are never deleted or moved.
 
-This prevents noisy skill-name conflicts while allowing Friday to provide any skills you do not already have.
+This avoids duplicate-skill warnings while allowing Friday to provide any skills you do not already have.
 
 ---
 
