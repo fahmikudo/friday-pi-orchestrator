@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.1";
+export const MODULE_VERSION = "2.0.2";
 import {
   access,
   appendFile,
@@ -256,6 +256,16 @@ async function nextId(root) {
 }
 
 export async function createWork(root, request, options = {}) {
+  const normalizedRequest = String(request || "").trim();
+  if (/^W-\d{8}-\d{3}$/.test(normalizedRequest)) {
+    try {
+      await loadManifest(root, normalizedRequest);
+      throw new Error(`Work ${normalizedRequest} already exists. Use /work-resume ${normalizedRequest} instead of /work.`);
+    } catch (error) {
+      if (error?.code !== "ENOENT" && !String(error?.message || "").includes("Unexpected end of JSON")) throw error;
+    }
+  }
+
   const id = await nextId(root);
   const title = String(options.title || request).trim().replace(/\s+/g, " ").slice(0, 90);
   const classification = triage(request);
@@ -307,7 +317,18 @@ export async function createWork(root, request, options = {}) {
   };
 
   const sourceSection = options.source
-    ? `\n\n## Source\n\n- Type: ${options.source.type || "external"}\n- Backlog: ${options.source.backlogId || "-"}\n- Backlog item: ${options.source.itemId || "-"}\n- Documents: ${(options.source.sourceDocuments ?? []).join(", ") || "-"}\n`
+    ? [
+        "",
+        "## Source",
+        "",
+        `- Type: ${options.source.type || "external"}`,
+        options.source.backlogId ? `- Backlog: ${options.source.backlogId}` : null,
+        options.source.itemId ? `- Backlog item: ${options.source.itemId}` : null,
+        options.source.originWorkId ? `- Origin work: ${options.source.originWorkId}` : null,
+        options.source.changeRequestId ? `- Change request: ${options.source.changeRequestId}` : null,
+        options.source.sourceDocuments?.length ? `- Documents: ${options.source.sourceDocuments.join(", ")}` : null,
+        "",
+      ].filter((line) => line !== null).join("\n")
     : "";
 
   await writeFile(
@@ -532,6 +553,22 @@ export async function completeStage(root, id) {
     throw new Error(`Cannot complete VERIFY with verdict ${manifest.verificationVerdict}.`);
   }
 
+  if (stage === "VERIFY") {
+    const now = new Date().toISOString();
+    for (const cr of manifest.changeRequests ?? []) {
+      if (cr.scopeClassification === "IN_SCOPE" && cr.status !== "COMPLETE") {
+        cr.status = "COMPLETE";
+        cr.resolution = "IMPLEMENTED";
+        cr.completedAt = now;
+        cr.updatedAt = now;
+        const body = await readChangeRequestArtifact(root, id, cr.path);
+        const requestBody = body.includes("## Request") ? body.split("## Request")[1].split("## Resolution Note")[0].trim() : cr.summary;
+        await writeChangeRequestArtifact(root, id, cr, requestBody, `Resolved automatically after VERIFY ${manifest.verificationVerdict}.`);
+        await appendJournal(root, id, { event: "change_request_resolved", changeRequestId: cr.id, resolution: "IMPLEMENTED", verdict: manifest.verificationVerdict });
+      }
+    }
+  }
+
   manifest.stages[stage] = { status: "DONE", updatedAt: new Date().toISOString() };
   if (stage === "REVIEW") {
     for (const state of Object.values(manifest.dirtyDomains ?? {})) {
@@ -697,24 +734,134 @@ export async function requestRework(root, id, reason = "Implementation rework re
   return manifest;
 }
 
-export async function changeRequest(root, id, content) {
+function normalizeChangeRequest(entry, index = 0) {
+  const id = entry?.id || `CR-${String(index + 1).padStart(3, "0")}`;
+  return {
+    id,
+    path: entry?.path ?? null,
+    summary: String(entry?.summary || "").trim(),
+    scopeClassification: entry?.scopeClassification || (entry?.legacy ? "UNCLASSIFIED" : "IN_SCOPE"),
+    status: entry?.status || "OPEN",
+    impact: entry?.impact || null,
+    originTaskId: entry?.originTaskId || null,
+    resolution: entry?.resolution || null,
+    resultWorkId: entry?.resultWorkId || null,
+    note: entry?.note || null,
+    createdAt: entry?.createdAt || entry?.at || new Date().toISOString(),
+    updatedAt: entry?.updatedAt || entry?.at || new Date().toISOString(),
+    completedAt: entry?.completedAt || null,
+    legacy: Boolean(entry?.legacy),
+  };
+}
+
+function inferLegacyScope(content = "") {
+  return /out[- ]of[- ]scope|out of scope|separate work|separate work item|unrelated work/i.test(content)
+    ? "OUT_OF_SCOPE"
+    : "UNCLASSIFIED";
+}
+
+async function readChangeRequestArtifact(root, workId, rel) {
+  if (!rel) return "";
+  try {
+    return await readFile(join(workDir(root, workId), rel), "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function writeChangeRequestArtifact(root, workId, cr, body, resolutionNote = null) {
+  const rel = cr.path || `artifacts/change-request-${cr.id.slice(3)}.md`;
+  const target = join(workDir(root, workId), rel);
+  const lines = [
+    `# ${cr.id}`,
+    "",
+    "## Metadata",
+    "",
+    `- Scope: ${cr.scopeClassification}`,
+    `- Status: ${cr.status}`,
+    `- Impact: ${cr.impact || "-"}`,
+    `- Origin task: ${cr.originTaskId || "-"}`,
+    `- Resolution: ${cr.resolution || "-"}`,
+    `- Result work: ${cr.resultWorkId || "-"}`,
+    "",
+    "## Request",
+    "",
+    String(body || cr.summary || "").trim(),
+  ];
+  if (resolutionNote || cr.note) {
+    lines.push("", "## Resolution Note", "", String(resolutionNote || cr.note).trim());
+  }
+  await writeFile(target, `${lines.join("\n")}\n`, "utf8");
+  cr.path = rel;
+}
+
+export async function listChangeRequests(root, id) {
   const manifest = await loadManifest(root, id);
-  if (["COMPLETE", "CANCELLED"].includes(manifest.status)) throw new Error(`Cannot change terminal work ${id} (${manifest.status}). Create a new work item.`);
-  const text = String(content || "").trim();
-  if (!text) throw new Error("Change request content is required.");
-
   manifest.changeRequests ??= [];
-  const number = manifest.changeRequests.length + 1;
-  const rel = `artifacts/change-request-${String(number).padStart(3, "0")}.md`;
-  const targetPath = join(workDir(root, id), rel);
-  await writeFile(targetPath, `# Change Request ${number}
+  const normalized = manifest.changeRequests.map((entry, index) => {
+    const cr = normalizeChangeRequest(entry, index);
+    const legacyStructured = !entry?.scopeClassification && !entry?.status && Boolean(entry?.id && entry?.path);
+    if (legacyStructured) cr.legacy = true;
+    if (legacyStructured && manifest.status === "COMPLETE" && ["PASS", "PASS_WITH_WARNINGS"].includes(manifest.verificationVerdict)) {
+      cr.scopeClassification = "IN_SCOPE";
+      cr.status = "COMPLETE";
+      cr.resolution = "IMPLEMENTED";
+      cr.completedAt = manifest.updatedAt || new Date().toISOString();
+      cr.updatedAt = cr.completedAt;
+    }
+    return cr;
+  });
+  const byId = new Map(normalized.map((entry) => [entry.id, entry]));
 
-${text}
-`, "utf8");
-  manifest.changeRequests.push({ id: `CR-${String(number).padStart(3, "0")}`, path: rel, summary: text.replace(/\s+/g, " ").slice(0, 180), at: new Date().toISOString() });
+  const artifactDir = join(workDir(root, id), "artifacts");
+  let names = [];
+  try { names = await readdir(artifactDir); } catch { names = []; }
+  for (const name of names.filter((value) => /^change-request-\d+\.md$/.test(value)).sort()) {
+    const number = Number(name.match(/(\d+)/)?.[1] || 0);
+    const crId = `CR-${String(number).padStart(3, "0")}`;
+    if (byId.has(crId)) continue;
+    const rel = `artifacts/${name}`;
+    const content = await readChangeRequestArtifact(root, id, rel);
+    const body = content
+      .replace(/^#.*$/m, "")
+      .replace(/## Metadata[\s\S]*?## Request/m, "")
+      .replace(/## Resolution Note[\s\S]*$/m, "")
+      .trim();
+    const entry = normalizeChangeRequest({
+      id: crId,
+      path: rel,
+      summary: (body || content).replace(/\s+/g, " ").slice(0, 180),
+      scopeClassification: inferLegacyScope(content),
+      status: "OPEN",
+      legacy: true,
+      createdAt: (await stat(join(artifactDir, name))).mtime.toISOString(),
+    }, number - 1);
+    normalized.push(entry);
+    byId.set(crId, entry);
+  }
 
-  const previousStage = manifest.currentStage;
-  const targetStage = manifest.route.includes("DESIGN") ? "DESIGN" : manifest.route.includes("PLAN") ? "PLAN" : "IMPLEMENT";
+  normalized.sort((a, b) => a.id.localeCompare(b.id));
+  const changed = JSON.stringify(manifest.changeRequests) !== JSON.stringify(normalized);
+  if (changed) {
+    manifest.changeRequests = normalized;
+    await saveManifest(root, manifest);
+    await appendJournal(root, id, { event: "change_requests_normalized", count: normalized.length });
+  }
+  return normalized;
+}
+
+function resolveChangeTargetStage(manifest, impact, originTaskId) {
+  const requested = String(impact || "AUTO").toUpperCase();
+  if (requested === "DESIGN" && manifest.route.includes("DESIGN")) return "DESIGN";
+  if (requested === "PLAN" && manifest.route.includes("PLAN")) return "PLAN";
+  if (requested === "IMPLEMENTATION" && manifest.route.includes("IMPLEMENT")) return "IMPLEMENT";
+  if (originTaskId && manifest.route.includes("IMPLEMENT")) return "IMPLEMENT";
+  if (manifest.route.includes("DESIGN")) return "DESIGN";
+  if (manifest.route.includes("PLAN")) return "PLAN";
+  return "IMPLEMENT";
+}
+
+async function invalidateForChangeRequest(root, manifest, cr, targetStage) {
   const targetIndex = manifest.route.indexOf(targetStage);
   for (let i = targetIndex; i < manifest.route.length; i++) {
     const stage = manifest.route[i];
@@ -722,29 +869,158 @@ ${text}
   }
   manifest.currentStage = targetStage;
   manifest.status = "IN_PROGRESS";
-  manifest.approval = { status: "PENDING", at: null, reason: null, revision: Number(manifest.approval?.revision ?? 0) };
   manifest.reviewVerdict = "PENDING";
   manifest.verificationVerdict = "PENDING";
   manifest.staleArtifacts ??= [];
+
+  if (targetStage !== "IMPLEMENT") {
+    manifest.approval = { status: "PENDING", at: null, reason: null, revision: Number(manifest.approval?.revision ?? 0) };
+  }
+
   for (const kind of [targetStage === "DESIGN" ? "design" : targetStage === "PLAN" ? "plan" : null, "review", "verification"].filter(Boolean)) {
     if (manifest.artifacts?.[kind] && !manifest.staleArtifacts.includes(kind)) manifest.staleArtifacts.push(kind);
   }
 
+  const tasks = await loadTasks(root, manifest.id);
   if (targetStage !== "IMPLEMENT") {
-    const tasks = await loadTasks(root, id);
     if (tasks.tasks.length) {
-      const historyRel = `artifacts/history/tasks-before-change-${String(number).padStart(3, "0")}.json`;
-      const historyTarget = join(workDir(root, id), historyRel);
+      const historyRel = `artifacts/history/tasks-before-${cr.id.toLowerCase()}.json`;
+      const historyTarget = join(workDir(root, manifest.id), historyRel);
       await mkdir(dirname(historyTarget), { recursive: true });
-      await writeFile(historyTarget, `${JSON.stringify(tasks, null, 2)}
-`, "utf8");
-      await atomicJson(join(workDir(root, id), "tasks.json"), { schemaVersion: SCHEMA_VERSION, tasks: [] });
+      await writeFile(historyTarget, `${JSON.stringify(tasks, null, 2)}\n`, "utf8");
+      await atomicJson(join(workDir(root, manifest.id), "tasks.json"), { schemaVersion: SCHEMA_VERSION, tasks: [] });
     }
+  } else if (cr.originTaskId) {
+    const task = tasks.tasks.find((entry) => entry.id === cr.originTaskId);
+    if (!task) throw new Error(`Unknown origin task: ${cr.originTaskId}`);
+    task.status = "IN_PROGRESS";
+    task.notes = [task.notes, `Reopened by ${cr.id}: ${cr.summary}`].filter(Boolean).join(" | ");
+    task.updatedAt = new Date().toISOString();
+    await atomicJson(join(workDir(root, manifest.id), "tasks.json"), tasks);
+    await appendJournal(root, manifest.id, { event: "task_reopened_by_change_request", taskId: task.id, changeRequestId: cr.id });
+  }
+}
+
+export async function changeRequest(root, id, content, options = {}) {
+  const manifest = await loadManifest(root, id);
+  const text = String(content || "").trim();
+  if (!text) throw new Error("Change request content is required.");
+
+  const scopeClassification = String(options.scopeClassification || "IN_SCOPE").toUpperCase();
+  if (!["IN_SCOPE", "OUT_OF_SCOPE"].includes(scopeClassification)) {
+    throw new Error(`Unsupported change-request scope: ${scopeClassification}`);
+  }
+  if (["COMPLETE", "CANCELLED"].includes(manifest.status) && scopeClassification !== "OUT_OF_SCOPE") {
+    throw new Error(`Cannot change terminal work ${id} (${manifest.status}) with an in-scope CR. Record it as OUT_OF_SCOPE and promote it to a new work item.`);
   }
 
+  await listChangeRequests(root, id);
+  const refreshed = await loadManifest(root, id);
+  refreshed.changeRequests ??= [];
+  const existingNumbers = refreshed.changeRequests.map((entry) => Number(String(entry.id || "").slice(3))).filter(Number.isFinite);
+  const number = (existingNumbers.length ? Math.max(...existingNumbers) : 0) + 1;
+  const cr = normalizeChangeRequest({
+    id: `CR-${String(number).padStart(3, "0")}`,
+    summary: text.replace(/\s+/g, " ").slice(0, 180),
+    scopeClassification,
+    status: "OPEN",
+    impact: String(options.impact || (options.originTaskId ? "IMPLEMENTATION" : "AUTO")).toUpperCase(),
+    originTaskId: options.originTaskId || null,
+    createdAt: new Date().toISOString(),
+  }, number - 1);
+
+  await writeChangeRequestArtifact(root, id, cr, text);
+  refreshed.changeRequests.push(cr);
+
+  const previousStage = refreshed.currentStage;
+  let targetStage = previousStage;
+  if (scopeClassification === "IN_SCOPE") {
+    targetStage = resolveChangeTargetStage(refreshed, cr.impact, cr.originTaskId);
+    cr.status = "IN_PROGRESS";
+    cr.updatedAt = new Date().toISOString();
+    await invalidateForChangeRequest(root, refreshed, cr, targetStage);
+  }
+
+  await saveManifest(root, refreshed);
+  await appendJournal(root, id, {
+    event: "change_request_recorded",
+    changeRequestId: cr.id,
+    scopeClassification,
+    originTaskId: cr.originTaskId,
+    impact: cr.impact,
+    fromStage: previousStage,
+    nextStage: targetStage,
+    summary: text,
+  });
+  return refreshed;
+}
+
+export async function resolveChangeRequest(root, id, crId, resolution, note = "") {
+  await listChangeRequests(root, id);
+  const manifest = await loadManifest(root, id);
+  const cr = manifest.changeRequests?.find((entry) => entry.id === crId);
+  if (!cr) throw new Error(`Unknown change request ${crId} for ${id}.`);
+  if (cr.status === "COMPLETE") return { manifest, changeRequest: cr };
+
+  const normalizedResolution = String(resolution || "").toUpperCase();
+  const allowed = new Set(["DECLINED", "DUPLICATE", "SUPERSEDED", "CANCELLED"]);
+  if (!allowed.has(normalizedResolution)) {
+    throw new Error(`Manual CR resolution must be one of: ${[...allowed].join(", ")}. IMPLEMENTED is completed automatically after successful VERIFY; PROMOTED_TO_WORK uses /promote-cr.`);
+  }
+  cr.status = "COMPLETE";
+  cr.resolution = normalizedResolution;
+  cr.note = note || null;
+  cr.completedAt = new Date().toISOString();
+  cr.updatedAt = cr.completedAt;
+  const body = await readChangeRequestArtifact(root, id, cr.path);
+  await writeChangeRequestArtifact(root, id, cr, body.includes("## Request") ? body.split("## Request")[1].split("## Resolution Note")[0].trim() : cr.summary, note);
   await saveManifest(root, manifest);
-  await appendJournal(root, id, { event: "change_request", changeRequestId: manifest.changeRequests.at(-1).id, fromStage: previousStage, nextStage: targetStage, summary: text });
-  return manifest;
+  await appendJournal(root, id, { event: "change_request_resolved", changeRequestId: cr.id, resolution: cr.resolution, note: cr.note });
+  return { manifest, changeRequest: cr };
+}
+
+export async function promoteChangeRequest(root, originWorkId, crId, options = {}) {
+  await listChangeRequests(root, originWorkId);
+  const originManifest = await loadManifest(root, originWorkId);
+  const cr = originManifest.changeRequests?.find((entry) => entry.id === crId);
+  if (!cr) throw new Error(`Unknown change request ${crId} for ${originWorkId}.`);
+  if (cr.status === "COMPLETE") {
+    if (cr.resolution === "PROMOTED_TO_WORK" && cr.resultWorkId) {
+      return { originManifest, changeRequest: cr, work: await loadManifest(root, cr.resultWorkId) };
+    }
+    throw new Error(`${crId} is already COMPLETE with resolution ${cr.resolution || "unknown"}.`);
+  }
+  if (cr.scopeClassification === "IN_SCOPE") {
+    throw new Error(`${crId} is IN_SCOPE and has already affected ${originWorkId}. Resolve it in the same work, or record an OUT_OF_SCOPE CR for promotion.`);
+  }
+
+  const artifact = await readChangeRequestArtifact(root, originWorkId, cr.path);
+  const requestBody = artifact.includes("## Request")
+    ? artifact.split("## Request")[1].split("## Resolution Note")[0].trim()
+    : (cr.summary || artifact.trim());
+  const request = String(options.request || requestBody || cr.summary).trim();
+  const title = String(options.title || cr.summary || request).replace(/\s+/g, " ").slice(0, 90);
+  const work = await createWork(root, request, {
+    title,
+    source: {
+      type: "change_request",
+      originWorkId,
+      changeRequestId: cr.id,
+    },
+  });
+
+  cr.scopeClassification = "OUT_OF_SCOPE";
+  cr.status = "COMPLETE";
+  cr.resolution = "PROMOTED_TO_WORK";
+  cr.resultWorkId = work.id;
+  cr.completedAt = new Date().toISOString();
+  cr.updatedAt = cr.completedAt;
+  cr.note = options.note || `Promoted to ${work.id}`;
+  await writeChangeRequestArtifact(root, originWorkId, cr, requestBody || cr.summary, cr.note);
+  await saveManifest(root, originManifest);
+  await appendJournal(root, originWorkId, { event: "change_request_promoted", changeRequestId: cr.id, resultWorkId: work.id });
+  await appendJournal(root, work.id, { event: "work_created_from_change_request", originWorkId, changeRequestId: cr.id });
+  return { originManifest, changeRequest: cr, work };
 }
 
 export async function cancelWork(root, id, reason = "Cancelled by user") {

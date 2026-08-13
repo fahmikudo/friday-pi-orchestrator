@@ -1,135 +1,68 @@
-# Migration — Pi Engineering Orchestrator v1.0.8 to Friday Pi Orchestrator v2.0.1
+# Migration — Friday Pi Orchestrator v2.0.1 to v2.0.2
 
-Friday v2.0.0 is a major product/runtime release, but it intentionally preserves the existing `.pi-work` state format.
+v2.0.2 is backward-compatible with existing `.pi-work` repositories. No destructive migration is required.
 
-## What changes
+## Upgrade
 
-Product/package identity:
-
-```text
-Pi Engineering Orchestrator
-→ Friday Pi Orchestrator
-```
-
-Repository/package name:
-
-```text
-friday-pi-orchestrator
-```
-
-Runtime helper modules move from `-v108.js` to clean paths (version suffix removed).
-
-## What does NOT change
-
-Do not rename or delete:
-
-```text
-.pi-work/
-```
-
-Existing data remains valid:
-
-- project.json;
-- work IDs;
-- manifests;
-- journals;
-- tasks;
-- artifacts;
-- memory;
-- backlogs;
-- backlog-to-work links;
-- failed verification history.
-
-Friday lazily adds missing v2 project defaults such as workflow policy, model profiles, and repository profile.
-
-## Upgrade procedure
-
-1. Fully quit all Pi processes.
-2. Extract Friday v2.0.0.
-3. Run:
+Fully quit running Pi processes, then install the new release:
 
 ```bash
+unzip friday-pi-orchestrator-v2.0.2.zip
+cd friday-pi-orchestrator-v2.0.2
 ./install.sh
 ```
 
-4. Start a fresh Pi process in the existing project.
-5. Run:
+Restart Pi inside the project and verify:
 
 ```text
 /orchestrator-doctor
 /status
+/change-requests
 ```
 
-6. For backlog projects:
+Do **not** delete or rename `.pi-work`.
+
+## Stable runtime filenames
+
+Starting in v2.0.2, Friday no longer creates version-suffixed helper names such as `store-v202.js` or `runtime-v202.js`. The package uses stable names:
 
 ```text
-/backlog-reconcile
-/backlog
+extensions/core.js
+extensions/store.js
+extensions/backlog.js
+extensions/backlog-format.js
+extensions/format.js
+extensions/runtime.js
 ```
 
-7. Resume existing work:
+Versioning remains in `package.json`, `MODULE_VERSION`, changelog, and release artifacts.
+
+## Existing change-request artifacts
+
+Older work may already contain:
 
 ```text
-/work-resume W-...
+.pi-work/work/W-.../artifacts/change-request-001.md
 ```
 
-## Old package target
+v2.0.2 discovers these files lazily when `/change-requests` or `/promote-cr` is used and creates structured CR metadata in the manifest. Do not edit the artifact manually.
 
-The installer detects the previous local package target:
+For the common case where an older CR was marked out-of-scope on a completed work:
 
 ```text
-~/.pi/agent/local-packages/pi-engineering-orchestrator
+/change-requests W-20260813-002
+/promote-cr W-20260813-002 CR-001
 ```
 
-It removes the old package registration and archives the old package directory before installing Friday under:
+Friday creates a new linked work item and resolves the origin CR as:
 
 ```text
-~/.pi/agent/local-packages/friday-pi-orchestrator
+status: COMPLETE
+resolution: PROMOTED_TO_WORK
+resultWorkId: W-...
 ```
 
-This operation does not touch any repository `.pi-work` directory.
-
-## Advanced skills
-
-Friday bundles the advanced skill pack.
-
-If duplicate global skills already exist, the installer leaves those global files intact and filters only the duplicate Friday package copies from Pi package loading.
-
-## New lifecycle behavior to know
-
-### Safe auto-continuation
-
-Default ON. Friday may continue safe stages automatically and stop at APPROVE or a failure.
-
-Disable if desired:
-
-```text
-/orchestrator-settings auto-continue off
-```
-
-### REVIEW FAIL
-
-Now returns to IMPLEMENT for correction.
-
-### VERIFY FAIL
-
-Remains BLOCKED at VERIFY.
-
-Use:
-
-```text
-/work-verify
-```
-
-when code does not need to change, or:
-
-```text
-/rework <reason>
-```
-
-when implementation must change.
-
-### Mid-work requirement change
+## In-scope changes
 
 Use:
 
@@ -137,29 +70,28 @@ Use:
 /change-request <changed requirement>
 ```
 
-rather than silently expanding implementation scope.
-
-### Cancellation
-
-Use:
+Task-specific correction:
 
 ```text
-/cancel-work <reason>
+/change-request --task T-005 --impact IMPLEMENTATION <change>
 ```
 
-instead of deleting state.
+The affected lifecycle stage is reopened and prior downstream evidence is invalidated. Open in-scope CRs are resolved as `IMPLEMENTED` only after successful VERIFY.
 
-## Rollback
+## Out-of-scope changes
 
-The installer archives the old package directory when one exists.
+Record without reopening the origin work:
 
-If you need to return to v1.0.8:
+```text
+/change-request --out-of-scope <follow-up requirement>
+```
 
-1. fully quit Pi;
-2. remove Friday's package registration;
-3. restore/reinstall the archived v1.0.8 package;
-4. restart Pi.
+Promote later:
 
-The shared `.pi-work` data remains the durable source of truth.
+```text
+/promote-cr CR-001
+```
 
-Artifacts created with v2 history/change-control fields are additive JSON fields. A very old runtime may ignore them, but running old code after v2 changes is not recommended as an operational strategy.
+## Compatibility
+
+Existing work IDs, manifests, journals, tasks, artifacts, memory, backlogs, backlog links, review history, and verification history remain valid. New CR fields are additive.

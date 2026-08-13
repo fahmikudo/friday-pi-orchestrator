@@ -15,7 +15,7 @@ import {
 } from "../extensions/store.js";
 
 test("failed VERIFY can be reopened, re-verified, and completed with PASS_WITH_WARNINGS", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-orch-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-orch-v202-"));
   try {
     await ensureWorkspace(root);
     const work = await createWork(root, "fix invoice export bug");
@@ -57,7 +57,7 @@ test("failed VERIFY can be reopened, re-verified, and completed with PASS_WITH_W
 });
 
 test("reopenVerification rejects non-VERIFY stages", async () => {
-  const root = await mkdtemp(join(tmpdir(), "pi-orch-"));
+  const root = await mkdtemp(join(tmpdir(), "pi-orch-v202-"));
   try {
     await ensureWorkspace(root);
     const work = await createWork(root, "add customer export endpoint");

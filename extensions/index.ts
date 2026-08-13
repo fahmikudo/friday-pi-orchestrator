@@ -31,14 +31,17 @@ import {
   failStage,
   findWorkspaceRoot,
   getActiveManifest,
+  listChangeRequests,
   listMemory,
   listWorkIds,
   loadManifest,
   loadProject,
   loadTasks,
   markDirty,
+  promoteChangeRequest,
   remember,
   reject,
+  resolveChangeRequest,
   reopenVerification,
   requestRework,
   saveArtifact,
@@ -53,6 +56,7 @@ import {
 
 import {
   MODULE_VERSION as FORMAT_MODULE_VERSION,
+  formatChangeRequests,
   formatStatus,
   formatTasks,
   formatWorkList,
@@ -160,6 +164,36 @@ function backlogItemRequest(backlog: any, item: any) {
   return parts.filter(Boolean).join("\n");
 }
 
+function parseChangeRequestCommand(raw: string) {
+  const tokens = raw.trim().split(/\s+/).filter(Boolean);
+  let scopeClassification: "IN_SCOPE" | "OUT_OF_SCOPE" = "IN_SCOPE";
+  let impact: "AUTO" | "IMPLEMENTATION" | "PLAN" | "DESIGN" = "AUTO";
+  let taskId: string | undefined;
+  const content: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token === "--out-of-scope") { scopeClassification = "OUT_OF_SCOPE"; continue; }
+    if (token === "--in-scope") { scopeClassification = "IN_SCOPE"; continue; }
+    if (token === "--task") { taskId = tokens[++i]; continue; }
+    if (token === "--impact") {
+      const value = String(tokens[++i] || "AUTO").toUpperCase();
+      if (!CR_IMPACTS.includes(value as any)) throw new Error(`Unsupported impact: ${value}`);
+      impact = value as any;
+      continue;
+    }
+    content.push(token);
+  }
+  return { content: content.join(" ").trim(), scopeClassification, impact, taskId };
+}
+
+function parseCrTarget(raw: string) {
+  const tokens = raw.trim().split(/\s+/).filter(Boolean);
+  let workId: string | undefined;
+  if (/^W-\d{8}-\d{3}$/.test(tokens[0] || "")) workId = tokens.shift();
+  const changeRequestId = tokens.shift();
+  return { workId, changeRequestId, rest: tokens };
+}
+
 async function routingContext(root: string, manifest: any) {
   const project = await loadProject(root);
   const skills = resolveSkills(manifest, project.repositoryProfile ?? {});
@@ -199,7 +233,7 @@ function continuationKickoff(workId: string) {
 }
 
 
-const RELEASE_VERSION = "2.0.1";
+const RELEASE_VERSION = "2.0.2";
 
 const ORCHESTRATOR_ACTIONS = [
   "init",
@@ -215,6 +249,9 @@ const ORCHESTRATOR_ACTIONS = [
   "update_model_profile",
   "request_rework",
   "change_request",
+  "list_change_requests",
+  "promote_change_request",
+  "resolve_change_request",
   "cancel_work",
   "remember",
   "save_backlog",
@@ -224,6 +261,9 @@ const ORCHESTRATOR_ACTIONS = [
 
 const VERDICTS = ["PASS", "PASS_WITH_WARNINGS", "FAIL"] as const;
 const TASK_STATUSES = ["PENDING", "IN_PROGRESS", "DONE", "FAILED"] as const;
+const CR_SCOPES = ["IN_SCOPE", "OUT_OF_SCOPE"] as const;
+const CR_IMPACTS = ["AUTO", "IMPLEMENTATION", "PLAN", "DESIGN"] as const;
+const CR_RESOLUTIONS = ["DECLINED", "DUPLICATE", "SUPERSEDED", "CANCELLED"] as const;
 const MEMORY_SECTIONS = ["architecture", "conventions", "domain-map", "database", "testing"] as const;
 const MEMORY_CONFIDENCE = ["CONFIRMED", "OBSERVED", "INFERRED", "STALE"] as const;
 
@@ -241,6 +281,9 @@ const MUTATING_ACTIONS = new Set<string>([
   "update_model_profile",
   "request_rework",
   "change_request",
+  "list_change_requests",
+  "promote_change_request",
+  "resolve_change_request",
   "cancel_work",
   "remember",
   "save_backlog",
@@ -353,6 +396,11 @@ export default function engineeringOrchestrator(pi: ExtensionAPI) {
       taskId: Type.Optional(Type.String()),
       taskStatus: Type.Optional(StringEnum(TASK_STATUSES)),
       notes: Type.Optional(Type.String()),
+      workId: Type.Optional(Type.String()),
+      changeRequestId: Type.Optional(Type.String()),
+      scopeClassification: Type.Optional(StringEnum(CR_SCOPES)),
+      impact: Type.Optional(StringEnum(CR_IMPACTS)),
+      resolution: Type.Optional(StringEnum(CR_RESOLUTIONS)),
       section: Type.Optional(StringEnum(MEMORY_SECTIONS)),
       confidence: Type.Optional(StringEnum(MEMORY_CONFIDENCE)),
       source: Type.Optional(Type.String()),
@@ -576,9 +624,44 @@ export default function engineeringOrchestrator(pi: ExtensionAPI) {
 
           case "change_request": {
             if (!params.content) throw new Error("content is required");
-            const updated = await changeRequest(root!, manifest.id, params.content);
+            const updated = await changeRequest(root!, params.workId || manifest.id, params.content, {
+              scopeClassification: params.scopeClassification ?? "IN_SCOPE",
+              impact: params.impact ?? "AUTO",
+              originTaskId: params.taskId,
+            });
             pi.appendEntry("friday-orchestrator-state", compactManifest(updated));
-            return { content: [{ type: "text", text: `${updated.id} change request persisted; returned to ${updated.currentStage}.` }], details: { ok: true, work: compactManifest(updated) } };
+            const cr = updated.changeRequests?.at(-1);
+            return {
+              content: [{ type: "text", text: `${cr?.id || "CR"} recorded as ${cr?.scopeClassification || "IN_SCOPE"}/${cr?.status || "OPEN"}.${cr?.scopeClassification === "IN_SCOPE" ? ` Work returned to ${updated.currentStage}.` : " Origin work was not reopened."}` }],
+              details: { ok: true, work: compactManifest(updated), changeRequest: cr },
+            };
+          }
+
+          case "list_change_requests": {
+            const workId = params.workId || manifest.id;
+            const items = await listChangeRequests(root!, workId);
+            return { content: [{ type: "text", text: formatChangeRequests(items) }], details: { ok: true, workId, changeRequests: items } };
+          }
+
+          case "promote_change_request": {
+            const workId = params.workId || manifest.id;
+            if (!params.changeRequestId) throw new Error("changeRequestId is required");
+            const result = await promoteChangeRequest(root!, workId, params.changeRequestId, { request: params.content, note: params.notes });
+            pi.appendEntry("friday-orchestrator-state", compactManifest(result.work));
+            return {
+              content: [{ type: "text", text: `${params.changeRequestId} promoted from ${workId} to ${result.work.id}. The CR is now COMPLETE/PROMOTED_TO_WORK.` }],
+              details: { ok: true, originWorkId: workId, changeRequest: result.changeRequest, work: compactManifest(result.work) },
+            };
+          }
+
+          case "resolve_change_request": {
+            const workId = params.workId || manifest.id;
+            if (!params.changeRequestId || !params.resolution) throw new Error("changeRequestId and resolution are required");
+            const result = await resolveChangeRequest(root!, workId, params.changeRequestId, params.resolution, params.notes || params.content || "");
+            return {
+              content: [{ type: "text", text: `${params.changeRequestId} resolved as ${result.changeRequest.resolution}.` }],
+              details: { ok: true, workId, changeRequest: result.changeRequest },
+            };
           }
 
           case "cancel_work": {
@@ -1149,17 +1232,100 @@ export default function engineeringOrchestrator(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("change-request", {
-    description: "Persist a mid-work requirement change and invalidate affected downstream design/evidence",
+    description: "Record an in-scope or out-of-scope change request with durable lifecycle tracking",
     handler: async (args, ctx) => {
-      const content = args.trim();
-      if (!content) return ctx.ui.notify("Usage: /change-request <new or changed requirement>", "warning");
+      let parsed;
+      try { parsed = parseChangeRequestCommand(args); } catch (error) {
+        return ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
+      if (!parsed.content) {
+        return ctx.ui.notify("Usage: /change-request [--task T-001] [--impact AUTO|IMPLEMENTATION|PLAN|DESIGN] [--out-of-scope] <requirement>", "warning");
+      }
       const { root, manifest } = await activeOrNotify(ctx);
       if (!root || !manifest) return;
       try {
-        const updated = await withStateMutation(root, () => changeRequest(root, manifest.id, content));
+        const updated = await withStateMutation(root, () => changeRequest(root, manifest.id, parsed.content, {
+          scopeClassification: parsed.scopeClassification,
+          impact: parsed.impact,
+          originTaskId: parsed.taskId,
+        }));
         pi.appendEntry("friday-orchestrator-state", compactManifest(updated));
-        ctx.ui.notify(`${updated.id} change request saved. Reopened ${updated.currentStage}.`, "warning");
-        dispatchUserMessage(pi, ctx, continuationKickoff(updated.id), `Change request for ${updated.id} queued for replanning.`);
+        const cr = updated.changeRequests?.at(-1);
+        if (!cr) throw new Error("Change request was not persisted.");
+        if (cr.scopeClassification === "OUT_OF_SCOPE") {
+          appendCommandOutput(pi, "Change Request Recorded", `${cr.id} OPEN / OUT_OF_SCOPE\n${cr.summary}\n\nOrigin work was not reopened. Use /promote-cr ${cr.id} to create a linked work item.`, "success");
+          return;
+        }
+        ctx.ui.notify(`${cr.id} recorded. ${updated.id} reopened at ${updated.currentStage}.`, "warning");
+        dispatchUserMessage(pi, ctx, continuationKickoff(updated.id), `Change request ${cr.id} queued for ${updated.currentStage}.`);
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+  });
+
+  pi.registerCommand("change-requests", {
+    description: "List durable change requests for the active or specified work item",
+    handler: async (args, ctx) => {
+      const root = await rootOrNotify(ctx);
+      if (!root) return;
+      const requestedId = args.trim();
+      const project = await loadProject(root);
+      const workId = requestedId || project.activeWorkId;
+      if (!workId) return ctx.ui.notify("Usage: /change-requests [work-id]", "warning");
+      try {
+        const items = await withStateMutation(root, () => listChangeRequests(root, workId));
+        appendCommandOutput(pi, `Change Requests — ${workId}`, formatChangeRequests(items));
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+  });
+
+  pi.registerCommand("promote-cr", {
+    description: "Promote an out-of-scope or legacy change request into a linked durable work item",
+    handler: async (args, ctx) => {
+      const root = await rootOrNotify(ctx);
+      if (!root) return;
+      const parsed = parseCrTarget(args);
+      const project = await loadProject(root);
+      const originWorkId = parsed.workId || project.activeWorkId;
+      if (!originWorkId || !parsed.changeRequestId) {
+        return ctx.ui.notify("Usage: /promote-cr [origin-work-id] <CR-001>", "warning");
+      }
+      try {
+        const result = await withStateMutation(root, () => promoteChangeRequest(root, originWorkId, parsed.changeRequestId!));
+        pi.appendEntry("friday-orchestrator-state", compactManifest(result.work));
+        appendCommandOutput(
+          pi,
+          "Change Request Promoted",
+          `${parsed.changeRequestId} from ${originWorkId}\n→ ${result.work.id} — ${result.work.title}\n\n${parsed.changeRequestId} is COMPLETE / PROMOTED_TO_WORK.`,
+          "success",
+        );
+        const packet = await withStateMutation(root, () => buildContextPacket(root, result.work.id));
+        dispatchUserMessage(pi, ctx, `${continuationKickoff(result.work.id)}\n\n${packet.content}`, `New work ${result.work.id} queued from ${parsed.changeRequestId}.`);
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+  });
+
+  pi.registerCommand("resolve-cr", {
+    description: "Close a change request with a non-implementation resolution",
+    handler: async (args, ctx) => {
+      const root = await rootOrNotify(ctx);
+      if (!root) return;
+      const parsed = parseCrTarget(args);
+      const resolution = String(parsed.rest.shift() || "").toUpperCase();
+      const note = parsed.rest.join(" ");
+      const project = await loadProject(root);
+      const workId = parsed.workId || project.activeWorkId;
+      if (!workId || !parsed.changeRequestId || !CR_RESOLUTIONS.includes(resolution as any)) {
+        return ctx.ui.notify("Usage: /resolve-cr [work-id] <CR-001> DECLINED|DUPLICATE|SUPERSEDED|CANCELLED [note]", "warning");
+      }
+      try {
+        const result = await withStateMutation(root, () => resolveChangeRequest(root, workId, parsed.changeRequestId!, resolution, note));
+        appendCommandOutput(pi, "Change Request Resolved", `${parsed.changeRequestId} COMPLETE / ${result.changeRequest.resolution}${note ? `\n${note}` : ""}`, "success");
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
       }

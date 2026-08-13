@@ -1,6 +1,6 @@
 {
   "name": "friday-pi-orchestrator",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Durable, evidence-driven engineering workflow orchestration for Pi. Thin agents, fat platform \u2014 build with structure, finish with confidence, feel like Friday.",
   "keywords": [
     "pi-package",

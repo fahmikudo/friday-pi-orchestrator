@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.2 — First-Class Change Request lifecycle
+
+- Added structured CR lifecycle with scope, impact, task linkage, status, resolution, and promoted-work traceability.
+- Added `/change-requests`, `/promote-cr`, and `/resolve-cr`.
+- Added `--task`, `--impact`, and `--out-of-scope` handling to `/change-request`.
+- Open in-scope CRs resolve automatically as `IMPLEMENTED` after successful VERIFY.
+- Out-of-scope/legacy CRs can be promoted to a linked work item without reopening the origin work.
+- Legacy `artifacts/change-request-*.md` files are normalized lazily.
+- Guard `/work <existing-work-id>` and direct `createWork()` against accidental duplicate work creation.
+- Replaced version-suffixed runtime/test helper filenames with stable semantic names.
+- `.pi-work` remains backward-compatible.
+
 ## 2.0.1 — Skill conflict installer fix
 
 - Fix duplicate skill warnings when the standalone global advanced-skill pack is already installed.

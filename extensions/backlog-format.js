@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.1";
+export const MODULE_VERSION = "2.0.2";
 export function formatBacklog(backlog) {
   const items = [...(backlog.workItems ?? [])].sort(
     (a, b) => (a.recommendedOrder ?? 0) - (b.recommendedOrder ?? 0),

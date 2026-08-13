@@ -1,4 +1,4 @@
-# Friday Pi Orchestrator — User Guide
+# Friday Pi Orchestrator v2.0.2 — User Guide
 
 This guide focuses on day-to-day use. For internals, see `ARCHITECTURE.md`.
 
@@ -275,7 +275,7 @@ If code must change:
 
 ### New package installed but old behavior still appears
 
-Fully quit every Pi process and restart. Friday uses unique `.js` helper paths, but a fresh process remains the safest major-upgrade procedure.
+Fully quit every Pi process and restart. Friday uses stable semantic helper paths (`store.js`, `core.js`, `runtime.js`, etc.), but a fresh process remains the safest major-upgrade procedure.
 
 ### Skill conflict warning
 
@@ -288,3 +288,62 @@ Run the Friday installer again. It detects global duplicate skill names and conf
 ```
 
 Use it first for runtime/module/state-reference problems.
+
+
+## First-Class Change Requests (v2.0.2)
+
+A CR is not automatically a new work item. First classify whether it belongs to the current work.
+
+### In-scope requirement change
+
+```text
+/change-request Add unit scope support to role assignments
+```
+
+Friday persists the CR and rewinds to the appropriate planning/design/implementation stage.
+
+### Task correction
+
+```text
+/change-request --task T-005 --impact IMPLEMENTATION Root / must redirect to /login
+```
+
+The task is reopened and downstream review/verification evidence becomes stale. After implementation, REVIEW and VERIFY run again. A successful VERIFY closes the CR as `COMPLETE / IMPLEMENTED`.
+
+### Out-of-scope follow-up
+
+```text
+/change-request --out-of-scope Root / redirects to /login
+```
+
+The origin work is not reopened. Promote the CR:
+
+```text
+/promote-cr CR-001
+```
+
+For a CR belonging to a completed/non-active work:
+
+```text
+/promote-cr W-20260813-002 CR-001
+```
+
+Friday creates a new work item with source linkage back to the origin work and CR. The origin CR becomes `COMPLETE / PROMOTED_TO_WORK`.
+
+### Inspect CRs
+
+```text
+/change-requests
+/change-requests W-20260813-002
+```
+
+### Resolve without implementation
+
+```text
+/resolve-cr CR-002 DUPLICATE Already tracked elsewhere
+/resolve-cr CR-003 DECLINED Not required by the product decision
+/resolve-cr CR-004 SUPERSEDED Replaced by CR-005
+/resolve-cr CR-005 CANCELLED Request withdrawn
+```
+
+`IMPLEMENTED` is evidence-driven and cannot be set manually.

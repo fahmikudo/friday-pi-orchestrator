@@ -1,4 +1,4 @@
-# Friday Pi Orchestrator v2.0.1
+# Friday Pi Orchestrator v2.0.2
 
 > **Build with structure. Finish with confidence. Feel like Friday.**
 
@@ -33,7 +33,22 @@ This lets you restart Pi, switch models, reject a design, recover from failed ve
 
 ---
 
-## v2.0.1 patch
+## v2.0.2 patch — First-Class Change Requests
+
+v2.0.2 adds a durable Change Request lifecycle for the normal case where requirements change while engineering work is already in flight.
+
+- `/change-request` now records a structured CR instead of only a Markdown artifact.
+- In-scope CRs can reopen DESIGN/PLAN/IMPLEMENT and optionally reopen a specific task.
+- Successful VERIFY automatically closes open in-scope CRs as `IMPLEMENTED`.
+- Out-of-scope CRs do not reopen the origin work and can be promoted with `/promote-cr`.
+- `/change-requests [work-id]` lists CR status, classification, task linkage, resolution, and promoted work IDs.
+- `/resolve-cr` closes duplicate/declined/superseded/cancelled CRs without pretending they were implemented.
+- Legacy `artifacts/change-request-NNN.md` files are discovered lazily so an existing `CR-001` can be promoted without manual `.pi-work` editing.
+- `/work W-YYYYMMDD-NNN` is rejected when that work already exists, with a suggestion to use `/work-resume`.
+- Internal runtime files now use stable semantic names (`store.js`, `core.js`, `runtime.js`, etc.) instead of version-suffixed filenames.
+- No `.pi-work` migration is required.
+
+### v2.0.1 patch
 
 - Fixes duplicate skill warnings when the same advanced engineering skills already exist under `~/.pi/agent/skills`.
 - The installer now prunes only the **installed Friday manifest** before `pi install`, so global skills stay authoritative and untouched.
@@ -82,8 +97,8 @@ Friday does **not** manage provider credentials. OpenAI, Google, Anthropic, loca
 ## Install from a release archive
 
 ```bash
-unzip friday-pi-orchestrator-v2.0.1.zip
-cd friday-pi-orchestrator-v2.0.1
+unzip friday-pi-orchestrator-v2.0.2.zip
+cd friday-pi-orchestrator-v2.0.2
 ./install.sh
 ```
 
@@ -108,6 +123,55 @@ Do **not** delete `.pi-work`.
 ### Install from GitHub later
 
 Once the repository is published, Pi can install a package directly from a Git URL. See Pi's package documentation for supported source forms.
+
+---
+
+## Change requests during a work item
+
+For a requirement change that belongs to the current work:
+
+```text
+/change-request Add facility-level validation to role assignment
+```
+
+For a correction tied to a specific implementation task:
+
+```text
+/change-request --task T-005 --impact IMPLEMENTATION Root / must redirect to /login
+```
+
+For a request that is explicitly outside the current work:
+
+```text
+/change-request --out-of-scope Root / redirects to /login
+```
+
+Then promote it to a linked work item:
+
+```text
+/promote-cr CR-001
+```
+
+If the origin work is no longer active, specify it explicitly:
+
+```text
+/promote-cr W-20260813-002 CR-001
+```
+
+Inspect CRs:
+
+```text
+/change-requests
+/change-requests W-20260813-002
+```
+
+Close a non-implementation CR:
+
+```text
+/resolve-cr CR-002 DUPLICATE Already tracked by W-20260813-009
+```
+
+Friday does **not** provide a manual `IMPLEMENTED` resolution. In-scope CRs are resolved as `IMPLEMENTED` only after the work successfully passes VERIFY.
 
 ---
 

@@ -19,7 +19,7 @@ test("v2 blocks product mutation outside IMPLEMENT", async () => {
 
 test("v2 exposes recovery and change-control commands", async () => {
   const text = await readFile(indexUrl, "utf8");
-  for (const command of ["rework", "change-request", "cancel-work", "skill-routing", "orchestrator-settings", "work-status"]) {
+  for (const command of ["rework", "change-request", "change-requests", "promote-cr", "resolve-cr", "cancel-work", "skill-routing", "orchestrator-settings", "work-status"]) {
     assert.match(text, new RegExp(`registerCommand\\("${command}"`));
   }
 });

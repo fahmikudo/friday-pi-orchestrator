@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.1";
+export const MODULE_VERSION = "2.0.2";
 export const WORK_TYPES = ["BUGFIX", "SMALL", "MEDIUM", "LARGE"];
 
 export const ROUTES = {

@@ -1,4 +1,4 @@
-export const MODULE_VERSION = "2.0.1";
+export const MODULE_VERSION = "2.0.2";
 
 export function formatStatus(manifest, tasks = [], agents = [], routing = undefined) {
   const done = Object.entries(manifest.stages ?? {}).filter(([, value]) => value.status === "DONE").length;
@@ -48,5 +48,15 @@ export function formatTasks(tasks) {
   return tasks.map((t) => {
     const deps = t.dependsOn?.length ? ` <- ${t.dependsOn.join(",")}` : "";
     return `${t.status === "DONE" ? "✓" : t.status === "IN_PROGRESS" ? "→" : t.status === "FAILED" ? "!" : "○"} ${t.id} [${t.owner}] ${t.description}${deps}`;
+  }).join("\n");
+}
+
+export function formatChangeRequests(changeRequests = []) {
+  if (!changeRequests.length) return "No change requests.";
+  return changeRequests.map((cr) => {
+    const result = cr.resultWorkId ? ` -> ${cr.resultWorkId}` : "";
+    const task = cr.originTaskId ? ` | task ${cr.originTaskId}` : "";
+    const resolution = cr.resolution ? ` | ${cr.resolution}${result}` : "";
+    return `${cr.id}  ${String(cr.status || "OPEN").padEnd(12)} ${String(cr.scopeClassification || "UNCLASSIFIED").padEnd(14)} ${cr.summary || "-"}${task}${resolution}`;
   }).join("\n");
 }

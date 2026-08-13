@@ -21,7 +21,7 @@ for cmd in pi node; do
   fi
 done
 
-echo "Friday Pi Orchestrator v2.0.1"
+echo "Friday Pi Orchestrator v2.0.2"
 echo "Build with structure. Finish with confidence. Feel like Friday."
 echo
 echo "Pre-install validation..."

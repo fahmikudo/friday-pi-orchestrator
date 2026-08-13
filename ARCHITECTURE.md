@@ -1,4 +1,4 @@
-# Friday Pi Orchestrator v2.0.1 — Architecture
+# Friday Pi Orchestrator v2.0.2 — Architecture
 
 ## 1. Purpose
 
@@ -324,3 +324,25 @@ Friday must never require:
 - direct file editing to repair workflow state.
 
 Workflow state must remain usable even if a provider/model is changed or temporarily unavailable.
+
+
+## Stable runtime filenames
+
+Runtime helper filenames are intentionally version-independent:
+
+```text
+extensions/
+├── index.ts
+├── core.js
+├── store.js
+├── backlog.js
+├── backlog-format.js
+├── format.js
+└── runtime.js
+```
+
+Release identity belongs in package metadata and `MODULE_VERSION`, not filenames. Upgrades replace these stable modules in place.
+
+## Change Request lifecycle
+
+Change requests are durable work metadata with scope classification, status, optional task linkage, impact, resolution, and optional promoted-work linkage. In-scope CRs participate in lifecycle invalidation and close only after successful verification. Out-of-scope CRs can be promoted to a new work without reopening the origin work.
